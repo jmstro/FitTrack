@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0f1115" />
+  <meta name="description" content="Track daily pushups, lunges, situps, and weight. Local-first with optional Supabase sync." />
+  <title>Workout Ledger</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body data-page="home">
+  <div class="wrap">
+    <header class="hero">
+      <div class="hero-text">
+        <p class="eyebrow">Daily Strength</p>
+        <h1>Workout Ledger</h1>
+        <p class="subtitle">Log pushups, lunges, situps, and weight. Local-first, syncs when signed in.</p>
+        <nav class="site-nav">
+          <a class="nav-link active" href="index.html">Log</a>
+          <a class="nav-link" href="insights.html">Insights</a>
+          <a class="nav-link" href="leaderboard.html">Leaderboard</a>
+          <a class="nav-link" href="profile.html">Profiles</a>
+        </nav>
+      </div>
+      <div class="hero-actions">
+        <button class="btn ghost" id="accountBtn" aria-label="Account">Account</button>
+        <div class="status" id="saveStatus" aria-live="polite">
+          <span class="dot" id="saveDot"></span>
+          <span id="saveText">Saved</span>
+          <span class="savedTiny" id="savedTiny">Not saved yet</span>
+        </div>
+        <div class="seg" role="tablist" aria-label="Theme">
+          <button class="active" data-theme="auto" role="tab" aria-selected="true">Auto</button>
+          <button data-theme="dark" role="tab" aria-selected="false">Dark</button>
+          <button data-theme="light" role="tab" aria-selected="false">Light</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="grid single">
+      <section class="panel log" style="--delay: 0s;">
+        <div class="panel-header">
+          <div>
+            <h2 id="todayTitle">Today</h2>
+            <p class="subtle" id="todaySub"></p>
+          </div>
+          <div class="controls">
+            <button class="btn ghost" id="prevDayBtn" aria-label="Previous day">Prev</button>
+            <button class="btn ghost" id="nextDayBtn" aria-label="Next day">Next</button>
+            <button class="btn primary" id="jumpTodayBtn">Today</button>
+            <input class="dateInput" type="date" id="dateInput" aria-label="Select date" />
+            <button class="btn" id="saveNowBtn">Save</button>
+          </div>
+        </div>
+
+        <div class="exercise-list" id="exerciseList"></div>
+
+        <div class="split">
+          <div class="field">
+            <label for="weightInput">Weight</label>
+            <div class="inline">
+              <input class="inputText" id="weightInput" inputmode="decimal" placeholder="e.g. 180.0" />
+              <div class="seg small" role="tablist" aria-label="Weight unit" id="unitToggle">
+                <button class="active" data-unit="lb" role="tab" aria-selected="true">lb</button>
+                <button data-unit="kg" role="tab" aria-selected="false">kg</button>
+              </div>
+            </div>
+            <p class="hint">Stored locally and synced to your profile when signed in.</p>
+          </div>
+
+          <div class="field">
+            <label for="notesInput">Notes</label>
+            <textarea class="textarea" id="notesInput" placeholder="How did it feel today?"></textarea>
+          </div>
+        </div>
+
+        <div class="panel-footer">
+          <p class="note" id="note">Tip: hold + or - to adjust faster. Export regularly for backups.</p>
+          <div class="actions">
+            <button class="btn ghost" id="copyBtn">Copy Day</button>
+            <button class="btn danger" id="resetDayBtn">Reset Day</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal-backdrop" id="authBackdrop" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+      <div class="modal-header">
+        <div>
+          <h2 id="authTitle">FitTrack Account</h2>
+          <p class="subtle" id="authSub">Sign in to sync your data and compete.</p>
+        </div>
+        <button class="btn ghost" id="authCloseBtn" aria-label="Close">Close</button>
+      </div>
+
+      <div class="seg" role="tablist" aria-label="Auth mode" id="authMode">
+        <button class="active" data-mode="signin" role="tab" aria-selected="true">Sign in</button>
+        <button data-mode="signup" role="tab" aria-selected="false">Sign up</button>
+      </div>
+
+      <div class="auth-form">
+        <label>Email</label>
+        <input class="inputText" id="authEmail" inputmode="email" placeholder="you@example.com" />
+
+        <label>Password</label>
+        <input class="inputText" id="authPassword" type="password" placeholder="At least 8 characters" />
+
+        <div id="signupExtra" hidden>
+          <label>Username</label>
+          <input class="inputText" id="authUsername" placeholder="public handle (letters/numbers/_)" />
+          <label>Display name</label>
+          <input class="inputText" id="authDisplayName" placeholder="shown on leaderboards" />
+          <p class="hint">Your username is used for your public profile URL.</p>
+        </div>
+
+        <div class="auth-actions">
+          <button class="btn primary" id="authSubmitBtn">Continue</button>
+          <button class="btn ghost" id="logoutBtn" hidden>Log out</button>
+        </div>
+
+        <p class="note" id="authMsg"></p>
+        <p class="hint">Backend: Supabase (free tier available). If the project is inactive for a week, it may pause.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">Saved</div>
+
+  <script>
+  // Fill these in from your Supabase project settings
+  window.FITTRACK_CONFIG = {
+    SUPABASE_URL: "https://durxxoerrpxbdmpqrveu.supabase.co",
+    SUPABASE_ANON_KEY: "sb_publishable_NknmFccc_mCuaZZPalP7Ag_fU7ekRcR"
+  };
+</script>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

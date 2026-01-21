@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0f1115" />
+  <meta name="description" content="Global and rivals leaderboards." />
+  <title>Leaderboards - Workout Ledger</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body data-page="leaderboard">
+  <div class="wrap">
+    <header class="hero">
+      <div class="hero-text">
+        <p class="eyebrow">Competition</p>
+        <h1>Leaderboards</h1>
+        <p class="subtitle">Track global standings or compare with rivals.</p>
+        <nav class="site-nav">
+          <a class="nav-link" href="index.html">Log</a>
+          <a class="nav-link" href="insights.html">Insights</a>
+          <a class="nav-link active" href="leaderboard.html">Leaderboard</a>
+          <a class="nav-link" href="profile.html">Profiles</a>
+        </nav>
+      </div>
+      <div class="hero-actions">
+        <button class="btn ghost" id="accountBtn" aria-label="Account">Account</button>
+        <div class="seg" role="tablist" aria-label="Theme">
+          <button class="active" data-theme="auto" role="tab" aria-selected="true">Auto</button>
+          <button data-theme="dark" role="tab" aria-selected="false">Dark</button>
+          <button data-theme="light" role="tab" aria-selected="false">Light</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="grid">
+      <section class="panel community" style="--delay: 0s;">
+        <div class="panel-header">
+          <div>
+            <h2>Leaderboards</h2>
+            <p class="subtle">Switch between global and rival standings.</p>
+          </div>
+          <div class="controls">
+            <button class="btn ghost" id="refreshLeaderboardsBtn">Refresh</button>
+          </div>
+        </div>
+
+        <div class="lb-controls">
+          <div class="seg small" role="tablist" aria-label="Leaderboard scope" id="lbScope">
+            <button class="active" data-scope="all" role="tab" aria-selected="true">All</button>
+            <button data-scope="rivals" role="tab" aria-selected="false">Rivals</button>
+          </div>
+          <div class="seg small" role="tablist" aria-label="Leaderboard range" id="lbRange">
+            <button class="active" data-range="7d" role="tab" aria-selected="true">7D</button>
+            <button data-range="all" role="tab" aria-selected="false">All</button>
+          </div>
+          <div class="seg small" role="tablist" aria-label="Leaderboard metric" id="lbMetric">
+            <button class="active" data-metric="total_reps" role="tab" aria-selected="true">Reps</button>
+            <button data-metric="total_pushups" role="tab" aria-selected="false">Pushups</button>
+            <button data-metric="total_lunges" role="tab" aria-selected="false">Lunges</button>
+            <button data-metric="total_situps" role="tab" aria-selected="false">Situps</button>
+            <button data-metric="days_logged" role="tab" aria-selected="false">Days</button>
+          </div>
+        </div>
+        <div class="lb-search">
+          <input class="inputText" id="lbSearchInput" placeholder="Filter by name or handle" />
+        </div>
+        <div class="leaderboard" id="leaderboardList">
+          <p class="note">Sign in to load leaderboards.</p>
+        </div>
+      </section>
+
+      <section class="panel community" style="--delay: 0.05s;">
+        <div class="panel-header">
+          <h2>Profile spotlight</h2>
+        </div>
+        <div class="profile-lookup">
+          <label class="subtle">Username</label>
+          <div class="inline">
+            <input class="inputText" id="profileLookupInput" placeholder="e.g. joseph" />
+            <button class="btn" id="profileLookupBtn">View</button>
+          </div>
+          <p class="hint">Share your profile: <span class="mono" id="myProfileLink">Sign in to generate</span></p>
+        </div>
+        <div class="profile-card" id="profileView">
+          <p class="note">No profile loaded.</p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal-backdrop" id="authBackdrop" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+      <div class="modal-header">
+        <div>
+          <h2 id="authTitle">FitTrack Account</h2>
+          <p class="subtle" id="authSub">Sign in to sync your data and compete.</p>
+        </div>
+        <button class="btn ghost" id="authCloseBtn" aria-label="Close">Close</button>
+      </div>
+
+      <div class="seg" role="tablist" aria-label="Auth mode" id="authMode">
+        <button class="active" data-mode="signin" role="tab" aria-selected="true">Sign in</button>
+        <button data-mode="signup" role="tab" aria-selected="false">Sign up</button>
+      </div>
+
+      <div class="auth-form">
+        <label>Email</label>
+        <input class="inputText" id="authEmail" inputmode="email" placeholder="you@example.com" />
+
+        <label>Password</label>
+        <input class="inputText" id="authPassword" type="password" placeholder="At least 8 characters" />
+
+        <div id="signupExtra" hidden>
+          <label>Username</label>
+          <input class="inputText" id="authUsername" placeholder="public handle (letters/numbers/_)" />
+          <label>Display name</label>
+          <input class="inputText" id="authDisplayName" placeholder="shown on leaderboards" />
+          <p class="hint">Your username is used for your public profile URL.</p>
+        </div>
+
+        <div class="auth-actions">
+          <button class="btn primary" id="authSubmitBtn">Continue</button>
+          <button class="btn ghost" id="logoutBtn" hidden>Log out</button>
+        </div>
+
+        <p class="note" id="authMsg"></p>
+        <p class="hint">Backend: Supabase (free tier available). If the project is inactive for a week, it may pause.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">Saved</div>
+
+  <script>
+  // Fill these in from your Supabase project settings
+  window.FITTRACK_CONFIG = {
+    SUPABASE_URL: "https://durxxoerrpxbdmpqrveu.supabase.co",
+    SUPABASE_ANON_KEY: "sb_publishable_NknmFccc_mCuaZZPalP7Ag_fU7ekRcR"
+  };
+</script>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

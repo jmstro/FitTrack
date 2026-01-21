@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0f1115" />
+  <meta name="description" content="Workout insights, trends, and history." />
+  <title>Insights - Workout Ledger</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body data-page="insights">
+  <div class="wrap">
+    <header class="hero">
+      <div class="hero-text">
+        <p class="eyebrow">Progress</p>
+        <h1>Insights</h1>
+        <p class="subtitle">Trends, history, and your training momentum.</p>
+        <nav class="site-nav">
+          <a class="nav-link" href="index.html">Log</a>
+          <a class="nav-link active" href="insights.html">Insights</a>
+          <a class="nav-link" href="leaderboard.html">Leaderboard</a>
+          <a class="nav-link" href="profile.html">Profiles</a>
+        </nav>
+      </div>
+      <div class="hero-actions">
+        <button class="btn ghost" id="accountBtn" aria-label="Account">Account</button>
+        <div class="seg" role="tablist" aria-label="Theme">
+          <button class="active" data-theme="auto" role="tab" aria-selected="true">Auto</button>
+          <button data-theme="dark" role="tab" aria-selected="false">Dark</button>
+          <button data-theme="light" role="tab" aria-selected="false">Light</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="grid">
+      <section class="panel insights" style="--delay: 0s;">
+        <div class="panel-header">
+          <h2>Insights</h2>
+          <span class="chip" id="streakChip">Streak: 0</span>
+        </div>
+        <div class="stats-grid" id="statsGrid"></div>
+
+        <div class="divider"></div>
+
+        <div class="panel-header tight">
+          <div>
+            <h3>Daily Goals</h3>
+            <p class="subtle">Set targets and watch progress fill in.</p>
+          </div>
+        </div>
+        <div class="goal-grid" id="goalGrid"></div>
+      </section>
+
+      <section class="panel charts" style="--delay: 0.05s;">
+        <div class="panel-header">
+          <h2>Trends</h2>
+          <div class="controls">
+            <div class="seg" role="tablist" aria-label="Chart range">
+              <button data-range="14" role="tab" aria-selected="false">14D</button>
+              <button class="active" data-range="30" role="tab" aria-selected="true">30D</button>
+              <button data-range="90" role="tab" aria-selected="false">90D</button>
+              <button data-range="all" role="tab" aria-selected="false">All</button>
+            </div>
+          </div>
+        </div>
+        <div class="chart-wrap">
+          <div class="legend">
+            <span class="legend-item pushups">Pushups</span>
+            <span class="legend-item lunges">Lunges</span>
+            <span class="legend-item situps">Situps</span>
+            <span class="legend-item weight">Weight</span>
+          </div>
+          <canvas id="chart"></canvas>
+        </div>
+      </section>
+
+      <section class="panel history span-full" style="--delay: 0.1s;">
+        <div class="panel-header">
+          <h2>History</h2>
+          <div class="controls">
+            <button class="btn ghost" id="exportBtn">Export</button>
+            <button class="btn ghost" id="exportCsvBtn">CSV</button>
+            <button class="btn ghost" id="importBtn">Import</button>
+          </div>
+        </div>
+
+        <div class="filters" aria-label="Filters">
+          <label>From <input type="date" id="fromDate" /></label>
+          <label>To <input type="date" id="toDate" /></label>
+          <label class="search">Search <input type="search" id="searchNotes" placeholder="Notes or tags" /></label>
+          <button class="btn ghost" id="clearFiltersBtn">Clear</button>
+        </div>
+
+        <div class="list" id="historyList" aria-live="polite"></div>
+
+        <div class="panel-footer">
+          <p class="note">Privacy: everything stays on this device unless you export it.</p>
+          <button class="btn danger" id="wipeAllBtn">Wipe All</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal-backdrop" id="authBackdrop" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+      <div class="modal-header">
+        <div>
+          <h2 id="authTitle">FitTrack Account</h2>
+          <p class="subtle" id="authSub">Sign in to sync your data and compete.</p>
+        </div>
+        <button class="btn ghost" id="authCloseBtn" aria-label="Close">Close</button>
+      </div>
+
+      <div class="seg" role="tablist" aria-label="Auth mode" id="authMode">
+        <button class="active" data-mode="signin" role="tab" aria-selected="true">Sign in</button>
+        <button data-mode="signup" role="tab" aria-selected="false">Sign up</button>
+      </div>
+
+      <div class="auth-form">
+        <label>Email</label>
+        <input class="inputText" id="authEmail" inputmode="email" placeholder="you@example.com" />
+
+        <label>Password</label>
+        <input class="inputText" id="authPassword" type="password" placeholder="At least 8 characters" />
+
+        <div id="signupExtra" hidden>
+          <label>Username</label>
+          <input class="inputText" id="authUsername" placeholder="public handle (letters/numbers/_)" />
+          <label>Display name</label>
+          <input class="inputText" id="authDisplayName" placeholder="shown on leaderboards" />
+          <p class="hint">Your username is used for your public profile URL.</p>
+        </div>
+
+        <div class="auth-actions">
+          <button class="btn primary" id="authSubmitBtn">Continue</button>
+          <button class="btn ghost" id="logoutBtn" hidden>Log out</button>
+        </div>
+
+        <p class="note" id="authMsg"></p>
+        <p class="hint">Backend: Supabase (free tier available). If the project is inactive for a week, it may pause.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">Saved</div>
+
+  <script>
+  // Fill these in from your Supabase project settings
+  window.FITTRACK_CONFIG = {
+    SUPABASE_URL: "https://durxxoerrpxbdmpqrveu.supabase.co",
+    SUPABASE_ANON_KEY: "sb_publishable_NknmFccc_mCuaZZPalP7Ag_fU7ekRcR"
+  };
+</script>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
