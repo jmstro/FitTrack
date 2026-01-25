@@ -333,6 +333,7 @@ const groupUpdateText = document.getElementById("groupUpdateText");
 
 const accountBtn = document.getElementById("accountBtn");
 const accountStatus = document.getElementById("accountStatus");
+const mobileAccountBtn = document.getElementById("mobileAccountBtn");
 
 const themeToggle = document.getElementById("themeToggle");
 const unitToggle = document.getElementById("unitToggle");
@@ -504,6 +505,9 @@ function bindEvents() {
   if (accountBtn) {
     accountBtn.addEventListener("click", () => openAuthModal());
   }
+  if (mobileAccountBtn) {
+    mobileAccountBtn.addEventListener("click", () => openAuthModal());
+  }
 
   if (authCloseBtn) {
     authCloseBtn.addEventListener("click", () => closeAuthModal());
@@ -553,6 +557,16 @@ function bindEvents() {
       btn.addEventListener("click", () => {
         setLogMode(btn.dataset.mode);
       });
+    });
+  }
+
+  if (logAuthNotice) {
+    logAuthNotice.addEventListener("click", (event) => {
+      const target = event.target.closest("#logAuthLink");
+      if (target) {
+        event.preventDefault();
+        openAuthModal();
+      }
     });
   }
 
@@ -1086,8 +1100,16 @@ function renderLog() {
   const lockMessage = logLockMessage();
   const locked = !!lockMessage;
   if (logAuthNotice) {
-    logAuthNotice.textContent = lockMessage;
-    logAuthNotice.hidden = !lockMessage;
+    if (!lockMessage) {
+      logAuthNotice.textContent = "";
+      logAuthNotice.hidden = true;
+    } else if (!authUser && supabaseEnabled()) {
+      logAuthNotice.innerHTML = `Sign in to log workouts and weight. <button class="link-btn" id="logAuthLink" type="button">Login here</button>`;
+      logAuthNotice.hidden = false;
+    } else {
+      logAuthNotice.textContent = lockMessage;
+      logAuthNotice.hidden = false;
+    }
   }
   setLogControlsDisabled(locked);
   if (locked) {
@@ -3577,17 +3599,20 @@ function updateAccountUI() {
   if (!supabaseEnabled()) {
     accountStatus.textContent = "Supabase not configured";
     if (logoutBtn) logoutBtn.hidden = true;
+    if (mobileAccountBtn) mobileAccountBtn.textContent = "Account";
     return;
   }
   if (!authUser) {
     accountStatus.textContent = "Not signed in";
     if (logoutBtn) logoutBtn.hidden = true;
+    if (mobileAccountBtn) mobileAccountBtn.textContent = "Sign in";
     return;
   }
   accountStatus.textContent = currentProfile?.display_name
     ? `Signed in as ${currentProfile.display_name}`
     : "Signed in";
   if (logoutBtn) logoutBtn.hidden = false;
+  if (mobileAccountBtn) mobileAccountBtn.textContent = "Account";
 }
 
 function openAuthModal() {
