@@ -99,19 +99,28 @@ body {
   margin-bottom: 12px;
   gap: 8px;
   align-items: center;
+  text-align: center;
+  width: 100%;
 }
 
 .mobile-brand {
   flex-direction: column;
 }
 
+.mobile-brand .brand-mark {
+  margin: 0 auto;
+}
+
 .mobile-account-btn {
   width: 100%;
   max-width: 220px;
   border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--surface);
+  border: 1px solid rgba(37, 99, 235, 0.35);
+  background: var(--accent-soft);
   font-weight: 600;
+  align-self: center;
+  position: relative;
+  z-index: 1;
 }
 
 .link-btn {
@@ -1097,17 +1106,26 @@ canvas {
   left: 0;
   right: 0;
   display: none;
-  gap: 6px;
-  justify-content: space-around;
+  gap: 4px;
+  justify-content: space-between;
   padding: 10px 12px;
   background: var(--surface);
   border-top: 1px solid var(--border);
+  grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
 .bottom-nav .nav-item {
   flex: 1;
+  min-width: 0;
   text-align: center;
+  font-size: 12px;
+  line-height: 1.2;
+  padding: 8px 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border-radius: var(--radius);
+  white-space: normal;
 }
 
 .modal-backdrop[hidden] {
@@ -1223,6 +1241,8 @@ canvas {
 
   .mobile-brand {
     display: flex;
+    flex-direction: column;
+    align-items: center;
   }
 
   .mobile-brand .brand-mark {
@@ -1230,7 +1250,7 @@ canvas {
   }
 
   .bottom-nav {
-    display: flex;
+    display: grid;
   }
 
   .progress-grid {
