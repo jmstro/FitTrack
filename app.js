@@ -506,7 +506,12 @@ function bindEvents() {
     accountBtn.addEventListener("click", () => openAuthModal());
   }
   if (mobileAccountBtn) {
-    mobileAccountBtn.addEventListener("click", () => openAuthModal());
+    const openAuth = (event) => {
+      if (event) event.preventDefault();
+      openAuthModal();
+    };
+    mobileAccountBtn.addEventListener("click", openAuth);
+    mobileAccountBtn.addEventListener("touchstart", openAuth, { passive: false });
   }
 
   if (authCloseBtn) {
@@ -1104,7 +1109,7 @@ function renderLog() {
       logAuthNotice.textContent = "";
       logAuthNotice.hidden = true;
     } else if (!authUser && supabaseEnabled()) {
-      logAuthNotice.innerHTML = `Sign in to log workouts and weight. <button class="link-btn" id="logAuthLink" type="button">Login here</button>`;
+      logAuthNotice.innerHTML = `Sign in to log workouts and weight. <button class="link-btn" id="logAuthLink" type="button">Login here:</button>`;
       logAuthNotice.hidden = false;
     } else {
       logAuthNotice.textContent = lockMessage;
