@@ -18,6 +18,7 @@ const DEFAULT_STATE = {
     gender: "",
     heightCm: null,
     insightIntensity: "strict",
+    tourCompleted: false,
     startingWeightLb: null
   },
   workouts: {
@@ -50,7 +51,8 @@ const DEFAULT_STATE = {
     groupMetric: "consistency",
     groupRange: 7,
     groupFilter: "all",
-    commentOpenId: null
+    commentOpenId: null,
+    tourSeen: false
   }
 };
 
@@ -59,7 +61,7 @@ const SUPABASE_URL = FITTRACK_CONFIG.SUPABASE_URL || "";
 const SUPABASE_ANON_KEY = FITTRACK_CONFIG.SUPABASE_ANON_KEY || "";
 const supabase = SUPABASE_URL && SUPABASE_ANON_KEY
   ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      auth: { persistSession: false, autoRefreshToken: true, detectSessionInUrl: true }
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
     })
   : null;
 
@@ -174,6 +176,44 @@ const BODY_PART_GROUPS = {
   lower: ["quads", "hamstrings", "glutes", "calves"],
   legs: ["quads", "hamstrings", "glutes", "calves"]
 };
+
+const TOUR_STEPS = [
+  {
+    tab: "today",
+    title: "Today dashboard",
+    body: "Your daily snapshot. Check streaks, quick stats, and the focus card. Use Quick Add to jump into logging or start a Live Session."
+  },
+  {
+    tab: "log",
+    title: "Log workouts",
+    body: "Pick a date, add exercises, then enter sets, reps, and weight. Use search + body-part filters and the Repeat Last Workout shortcut. Logs save to Supabase only."
+  },
+  {
+    tab: "live",
+    title: "Live Session",
+    body: "Start Session, choose Push or Pull (or a muscle), then log sets as you lift. The app suggests pairing muscles and exercises to keep you balanced. Saving ends the session and creates a workout log."
+  },
+  {
+    tab: "progress",
+    title: "Progress report",
+    body: "See trends, body-part focus, and actionable insights. Switch Insight Intensity between Strict and Aggressive depending on how much coaching you want."
+  },
+  {
+    tab: "groups",
+    title: "Groups",
+    body: "Create a group, set a weekly goal, and add members by username search. Compare consistency and volume in leaderboards."
+  },
+  {
+    tab: "feed",
+    title: "Feed",
+    body: "Your activity stream. Your workout logs and streaks show here, and you can like or comment. Group updates appear in the group feed."
+  },
+  {
+    tab: "today",
+    title: "Account",
+    body: "Use the Account button to sign in, update your profile, and adjust units or theme. That is also where you can revisit settings later."
+  }
+];
 
 const CATEGORY_OPTIONS = [
   "All",
@@ -400,6 +440,8 @@ const groupFeed = document.getElementById("groupFeed");
 const groupMessageInput = document.getElementById("groupMessageInput");
 const groupMessageBtn = document.getElementById("groupMessageBtn");
 const leaveGroupBtn = document.getElementById("leaveGroupBtn");
+const deleteGroupBtn = document.getElementById("deleteGroupBtn");
+const groupMemberList = document.getElementById("groupMemberList");
 const memberSearchInput = document.getElementById("memberSearchInput");
 const memberSearchBtn = document.getElementById("memberSearchBtn");
 const memberSearchResults = document.getElementById("memberSearchResults");
@@ -420,11 +462,19 @@ const displayNameInput = document.getElementById("displayNameInput");
 const onboardingBackBtn = document.getElementById("onboardingBackBtn");
 const onboardingNextBtn = document.getElementById("onboardingNextBtn");
 const onboardingSkipBtn = document.getElementById("onboardingSkipBtn");
+const tourModal = document.getElementById("tourModal");
+const tourTitle = document.getElementById("tourTitle");
+const tourProgress = document.getElementById("tourProgress");
+const tourStepTitle = document.getElementById("tourStepTitle");
+const tourStepBody = document.getElementById("tourStepBody");
+const tourBackBtn = document.getElementById("tourBackBtn");
+const tourNextBtn = document.getElementById("tourNextBtn");
+const tourSkipBtn = document.getElementById("tourSkipBtn");
+const tourCloseBtn = document.getElementById("tourCloseBtn");
 
 const groupModal = document.getElementById("groupModal");
 const groupModalClose = document.getElementById("groupModalClose");
 const groupNameInput = document.getElementById("groupNameInput");
-const groupIconInput = document.getElementById("groupIconInput");
 const groupPrivateToggle = document.getElementById("groupPrivateToggle");
 const groupChallengeType = document.getElementById("groupChallengeType");
 const groupChallengeGoal = document.getElementById("groupChallengeGoal");
@@ -451,6 +501,7 @@ const authSubtitle = document.getElementById("authSubtitle");
 const toastEl = document.getElementById("toast");
 
 let onboardingStep = 0;
+let tourStep = 0;
 let saveTimer = null;
 let profileSyncTimer = null;
 let memberSearchTimer = null;
@@ -564,16 +615,12 @@ function bindEvents() {
       });
     });
   }
-
-  if (logAuthNotice) {
-    logAuthNotice.addEventListener("click", (event) => {
-      const target = event.target.closest("#logAuthLink");
-      if (target) {
-        event.preventDefault();
-        openAuthModal();
-      }
-    });
-  }
+  document.addEventListener("click", (event) => {
+    const trigger = event.target.closest("[data-action='open-auth']");
+    if (!trigger) return;
+    event.preventDefault();
+    openAuthModal();
+  });
 
   if (workoutNameInput) {
     workoutNameInput.addEventListener("input", () => {
@@ -935,6 +982,18 @@ function bindEvents() {
     leaveGroupBtn.addEventListener("click", () => leaveGroup());
   }
 
+  if (deleteGroupBtn) {
+    deleteGroupBtn.addEventListener("click", () => deleteGroup());
+  }
+
+  if (groupMemberList) {
+    groupMemberList.addEventListener("click", (event) => {
+      const btn = event.target.closest("button[data-action='remove-member']");
+      if (!btn) return;
+      removeMemberFromGroup(btn.dataset.userId);
+    });
+  }
+
   if (feedList) {
     feedList.addEventListener("click", (event) => {
       const btn = event.target.closest("button[data-action]");
@@ -978,6 +1037,19 @@ function bindEvents() {
   if (onboardingSkipBtn) {
     onboardingSkipBtn.addEventListener("click", () => skipOnboarding());
   }
+
+  if (tourBackBtn) {
+    tourBackBtn.addEventListener("click", () => stepTour(-1));
+  }
+  if (tourNextBtn) {
+    tourNextBtn.addEventListener("click", () => stepTour(1));
+  }
+  if (tourSkipBtn) {
+    tourSkipBtn.addEventListener("click", () => completeTour(true));
+  }
+  if (tourCloseBtn) {
+    tourCloseBtn.addEventListener("click", () => completeTour(true));
+  }
 }
 
 function renderAll() {
@@ -990,6 +1062,7 @@ function renderAll() {
   renderGroups();
   renderFeed();
   renderRail();
+  openTourIfNeeded();
 }
 
 function initFilters() {
@@ -1109,7 +1182,7 @@ function renderLog() {
       logAuthNotice.textContent = "";
       logAuthNotice.hidden = true;
     } else if (!authUser && supabaseEnabled()) {
-      logAuthNotice.innerHTML = `Sign in to log workouts and weight. <button class="link-btn" id="logAuthLink" type="button">Login here:</button>`;
+      logAuthNotice.innerHTML = `Sign in to log workouts and weight. <button class="link-btn" data-action="open-auth" type="button">Login here:</button>`;
       logAuthNotice.hidden = false;
     } else {
       logAuthNotice.textContent = lockMessage;
@@ -1158,15 +1231,17 @@ function renderLog() {
 
 function renderWorkoutHistory() {
   if (!workoutHistoryList) return;
-  const logs = Object.values(state.workoutLogs || {});
+  const logs = sortLogsByTime(getAllWorkoutLogs());
   if (!logs.length) {
     workoutHistoryList.innerHTML = "<p class=\"note\">No workouts logged yet.</p>";
     return;
   }
-  logs.sort((a, b) => b.date.localeCompare(a.date));
   const limit = 20;
   const rows = logs.slice(0, limit).map((log) => {
     const dateLabel = formatDateShort(new Date(log.date + "T00:00:00"));
+    const startedAt = log.startedAt || log.createdAt;
+    const timeLabel = startedAt ? formatTimeShort(new Date(startedAt)) : "";
+    const whenLabel = timeLabel ? `${dateLabel} · ${timeLabel}` : dateLabel;
     const sets = countSets(log);
     const volume = formatVolume(workoutVolume(log, "all"));
     const splitLabel = log.splitType ? getSplitLabel(log.splitType) : "";
@@ -1187,7 +1262,7 @@ function renderWorkoutHistory() {
     return `
       <details class="history-item">
         <summary>
-          <div class="history-title">${escapeHtml(log.name || "Workout")} <span class="history-meta">(${dateLabel})</span></div>
+          <div class="history-title">${escapeHtml(log.name || "Workout")} <span class="history-meta">(${escapeHtml(whenLabel)})</span></div>
           <div class="history-meta">${splitLabel ? `${splitLabel} | ` : ""}${sets} sets | ${volume}</div>
         </summary>
         <div class="history-body">${exercises || "<p class=\"note\">No exercises logged.</p>"}</div>
@@ -1788,7 +1863,7 @@ function computeSessionStats(log, weightLogs) {
 }
 
 function collectSessionStats(weightLogs) {
-  const sessions = Object.values(state.workoutLogs || {})
+  const sessions = getAllWorkoutLogs()
     .map((log) => computeSessionStats(log, weightLogs))
     .filter((session) => session.totalSets > 0);
   sessions.sort((a, b) => a.date.localeCompare(b.date));
@@ -1874,7 +1949,7 @@ function computeConfidence(weeksWithWorkouts, workoutsPerWeek) {
 
 function computeWorkoutStreaks(sessions) {
   if (!sessions.length) return { maxStreak: 0, maxGap: 0, lastGap: 0 };
-  const dates = sessions.map((session) => session.date).sort();
+  const dates = Array.from(new Set(sessions.map((session) => session.date))).sort();
   let maxStreak = 1;
   let currentStreak = 1;
   let maxGap = 0;
@@ -2782,12 +2857,16 @@ function renderGroupDetail() {
     if (groupLeaderboard) groupLeaderboard.innerHTML = "";
     if (groupFeed) groupFeed.innerHTML = "<p class=\"note\">Group activity will appear here.</p>";
     if (leaveGroupBtn) leaveGroupBtn.hidden = true;
+    if (deleteGroupBtn) deleteGroupBtn.hidden = true;
+    if (groupMemberList) groupMemberList.innerHTML = "<p class=\"note\">No members to show.</p>";
     return;
   }
 
+  const isOwner = group.ownerId === state.user.id;
   if (groupTitle) groupTitle.textContent = group.name;
   if (groupChallenge) groupChallenge.textContent = group.challenge.label;
-  if (leaveGroupBtn) leaveGroupBtn.hidden = false;
+  if (leaveGroupBtn) leaveGroupBtn.hidden = isOwner;
+  if (deleteGroupBtn) deleteGroupBtn.hidden = !isOwner;
 
   const metric = state.ui.groupMetric;
   const range = state.ui.groupRange;
@@ -2847,6 +2926,34 @@ function renderGroupDetail() {
       groupFeed.innerHTML = "<p class=\"note\">No group activity yet.</p>";
     } else {
       groupFeed.innerHTML = feedItems.slice(0, 6).map((item) => renderFeedCard(item, true)).join("");
+    }
+  }
+  if (groupMemberList) {
+    const members = (group.members || []).slice().sort((a, b) => {
+      if (a.id === group.ownerId) return -1;
+      if (b.id === group.ownerId) return 1;
+      return (a.name || "").localeCompare(b.name || "");
+    });
+    if (!members.length) {
+      groupMemberList.innerHTML = "<p class=\"note\">No members yet.</p>";
+    } else {
+      groupMemberList.innerHTML = members.map((member) => {
+        const isOwnerMember = member.id === group.ownerId;
+        const label = member.name || member.username || "Member";
+        const handle = member.username ? `@${member.username}` : "";
+        const action = isOwner && !isOwnerMember
+          ? `<button class="btn ghost danger" data-action="remove-member" data-user-id="${member.id}">Remove</button>`
+          : `<span class="member-role">${isOwnerMember ? "Owner" : ""}</span>`;
+        return `
+          <div class="library-card">
+            <div>
+              <div class="library-title">${escapeHtml(label)}</div>
+              <div class="library-tags">${escapeHtml(handle)}</div>
+            </div>
+            ${action}
+          </div>
+        `;
+      }).join("");
     }
   }
   if (memberSearchResults && !memberSearchResults.innerHTML) {
@@ -3010,12 +3117,13 @@ function saveWorkoutForDate(dateKey, renderFn, redirectTab) {
     return;
   }
   const cleaned = normalizeDraft(draft, dateKey);
-  state.workoutLogs[dateKey] = cleaned;
+  state.workoutLogs[cleaned.id] = cleaned;
   resetDraftForDate(dateKey);
   saveTemplate(cleaned);
   addWorkoutFeed(cleaned);
   addGroupFeed(cleaned);
   const logEntry = {
+    id: cleaned.id,
     date: cleaned.date,
     totalVolume: workoutVolume(cleaned, "all"),
     totalSets: countSets(cleaned)
@@ -3024,9 +3132,7 @@ function saveWorkoutForDate(dateKey, renderFn, redirectTab) {
     group.members.forEach((member) => {
       if (member.id === state.user.id) {
         member.logs = member.logs || [];
-        const idx = member.logs.findIndex((row) => row.date === cleaned.date);
-        if (idx >= 0) member.logs[idx] = logEntry;
-        else member.logs.push(logEntry);
+        member.logs.push(logEntry);
       }
     });
   });
@@ -3091,9 +3197,10 @@ function repeatLastWorkout() {
   }
   const dateKey = getActiveWorkoutDateKey();
   const draft = {
-    id: createId("log"),
+    id: createUuid(),
     date: dateKey,
     name: template.name,
+    startedAt: buildSessionTimestamp(dateKey),
     exercises: template.exercises.map((ex) => ({
       name: ex.name,
       sets: ex.sets.map((set) => ({ reps: set.reps, weight: set.weight }))
@@ -3113,14 +3220,13 @@ function createGroup() {
     toast("Group name is required.");
     return;
   }
-  const icon = (groupIconInput && groupIconInput.value || "").trim().slice(0, 2).toUpperCase();
   const challengeType = groupChallengeType ? groupChallengeType.value : "workouts";
   const goal = Number(groupChallengeGoal && groupChallengeGoal.value) || 4;
   const id = createUuid();
   const group = {
     id,
     name,
-    icon: icon || "GR",
+    icon: null,
     isPrivate: !!(groupPrivateToggle && groupPrivateToggle.checked),
     ownerId: state.user.id,
     createdAt: new Date().toISOString(),
@@ -3191,12 +3297,13 @@ async function searchMembers() {
   }
   memberSearchResults.innerHTML = "<p class=\"note\">Searching...</p>";
   const { data, error } = await supabase
-    .from("profiles")
+    .from("public_profiles")
     .select("id, username, display_name")
     .ilike("username", `%${query}%`)
     .limit(12);
   if (error) {
-    memberSearchResults.innerHTML = "<p class=\"note\">Search failed.</p>";
+    const message = error.message ? `Search failed: ${error.message}` : "Search failed.";
+    memberSearchResults.innerHTML = `<p class="note">${escapeHtml(message)}</p>`;
     return;
   }
   const existing = new Set((group?.members || []).map((member) => member.id));
@@ -3270,6 +3377,10 @@ function leaveGroup() {
   if (!requireAuth("Sign in to manage groups.")) return;
   const group = getSelectedGroup();
   if (!group) return;
+  if (group.ownerId === state.user.id) {
+    toast("Owners must delete the group.");
+    return;
+  }
   delete state.groups.byId[group.id];
   state.groups.order = state.groups.order.filter((id) => id !== group.id);
   state.ui.selectedGroupId = state.groups.order[0] || null;
@@ -3280,6 +3391,64 @@ function leaveGroup() {
   if (supabaseEnabled() && authUser) {
     removeGroupMember(group.id, authUser.id);
   }
+}
+
+async function removeMemberFromGroup(userId) {
+  if (!requireAuth("Sign in to manage groups.")) return;
+  const group = getSelectedGroup();
+  if (!group || !userId) return;
+  if (group.ownerId !== state.user.id) {
+    toast("Only the group owner can remove members.");
+    return;
+  }
+  if (userId === group.ownerId) {
+    toast("Owner cannot be removed.");
+    return;
+  }
+  if (!confirm("Remove this member from the group?")) return;
+  if (supabaseEnabled() && authUser) {
+    const { error } = await supabase
+      .from("group_members")
+      .delete()
+      .eq("group_id", group.id)
+      .eq("user_id", userId);
+    if (error) {
+      toast("Unable to remove member.");
+      return;
+    }
+  }
+  group.members = (group.members || []).filter((member) => member.id !== userId);
+  saveState();
+  renderGroups();
+  toast("Member removed.");
+}
+
+async function deleteGroup() {
+  if (!requireAuth("Sign in to manage groups.")) return;
+  const group = getSelectedGroup();
+  if (!group) return;
+  if (group.ownerId !== state.user.id) {
+    toast("Only the group owner can delete the group.");
+    return;
+  }
+  if (!confirm("Delete this group? This cannot be undone.")) return;
+  if (supabaseEnabled() && authUser) {
+    const { error } = await supabase
+      .from("groups")
+      .delete()
+      .eq("id", group.id);
+    if (error) {
+      toast("Unable to delete group.");
+      return;
+    }
+  }
+  delete state.groups.byId[group.id];
+  state.groups.order = state.groups.order.filter((id) => id !== group.id);
+  state.ui.selectedGroupId = state.groups.order[0] || null;
+  saveState();
+  renderGroups();
+  renderToday();
+  toast("Group deleted.");
 }
 
 function toggleLike(id) {
@@ -3315,7 +3484,6 @@ function closeGroupModal() {
   if (!groupModal) return;
   groupModal.hidden = true;
   if (groupNameInput) groupNameInput.value = "";
-  if (groupIconInput) groupIconInput.value = "";
   if (groupChallengeGoal) groupChallengeGoal.value = "";
 }
 
@@ -3327,6 +3495,20 @@ function openOnboardingIfNeeded() {
   onboarding.hidden = false;
   onboardingStep = 0;
   renderOnboarding();
+}
+
+function openTourIfNeeded() {
+  if (!tourModal) return;
+  if (!authUser) return;
+  if (!currentProfile) return;
+  if (state.ui.tourSeen) return;
+  if (!state.user.onboarded) return;
+  if (state.user.tourCompleted || currentProfile.tour_completed) return;
+  if (onboarding && !onboarding.hidden) return;
+  tourStep = 0;
+  tourModal.hidden = false;
+  state.ui.tourSeen = true;
+  renderTour();
 }
 
 function renderOnboarding() {
@@ -3368,6 +3550,7 @@ function stepOnboarding(delta) {
       scheduleProfileSync();
       onboarding.hidden = true;
       renderToday();
+      openTourIfNeeded();
       return;
     }
   }
@@ -3381,6 +3564,39 @@ function skipOnboarding() {
   saveState();
   scheduleProfileSync();
   if (onboarding) onboarding.hidden = true;
+  openTourIfNeeded();
+}
+
+function renderTour() {
+  if (!tourModal) return;
+  const step = TOUR_STEPS[tourStep];
+  if (!step) return;
+  if (tourTitle) tourTitle.textContent = "Momentum Walkthrough";
+  if (tourProgress) tourProgress.textContent = `Step ${tourStep + 1} of ${TOUR_STEPS.length}`;
+  if (tourStepTitle) tourStepTitle.textContent = step.title;
+  if (tourStepBody) tourStepBody.textContent = step.body;
+  if (tourBackBtn) tourBackBtn.disabled = tourStep === 0;
+  if (tourNextBtn) tourNextBtn.textContent = tourStep === TOUR_STEPS.length - 1 ? "Finish" : "Next";
+  if (step.tab) setActiveTab(step.tab);
+}
+
+function stepTour(delta) {
+  if (!tourModal) return;
+  const next = tourStep + delta;
+  if (next >= TOUR_STEPS.length) {
+    completeTour(false);
+    return;
+  }
+  tourStep = clamp(next, 0, TOUR_STEPS.length - 1);
+  renderTour();
+}
+
+function completeTour(skipped) {
+  state.user.tourCompleted = true;
+  saveState();
+  scheduleProfileSync();
+  if (tourModal) tourModal.hidden = true;
+  if (skipped) toast("Tour skipped.");
 }
 
 function selectGoal(value, btn) {
@@ -3514,7 +3730,8 @@ function buildProfilePayload() {
     theme: state.user.theme || "auto",
     prefers_morning: !!state.user.prefersMorning,
     onboarded: !!state.user.onboarded,
-    insight_intensity: state.user.insightIntensity || "strict"
+    insight_intensity: state.user.insightIntensity || "strict",
+    tour_completed: !!state.user.tourCompleted
   };
   const displayName = (state.user.name || "").trim();
   if (displayName) payload.display_name = displayName;
@@ -3535,6 +3752,7 @@ function applyProfileToState(profile) {
   state.user.theme = profile.theme || "auto";
   state.user.prefersMorning = !!profile.prefers_morning;
   state.user.onboarded = !!profile.onboarded;
+  state.user.tourCompleted = !!profile.tour_completed;
   const intensity = profile.insight_intensity || state.user.insightIntensity || "strict";
   state.user.insightIntensity = intensity === "coach" ? "aggressive" : intensity;
 }
@@ -3555,6 +3773,7 @@ function resetStateForSignOut() {
   state.ui.liveStarted = false;
   state.ui.liveSplit = "";
   state.ui.liveMuscle = "";
+  state.ui.tourSeen = false;
   if (onboarding) onboarding.hidden = true;
   applyTheme();
   applyUnits();
@@ -3597,6 +3816,7 @@ async function bootstrapRemote() {
   await syncLocalToSupabase();
   await loadRemoteData();
   openOnboardingIfNeeded();
+  openTourIfNeeded();
 }
 
 function updateAccountUI() {
@@ -3751,7 +3971,7 @@ async function ensureProfile() {
   if (!supabaseEnabled() || !authUser) return;
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, username, display_name, goal, frequency, today_focus, age, gender, height_cm, starting_weight_lb, units, theme, prefers_morning, onboarded, insight_intensity")
+    .select("id, username, display_name, goal, frequency, today_focus, age, gender, height_cm, starting_weight_lb, units, theme, prefers_morning, onboarded, insight_intensity, tour_completed")
     .eq("id", authUser.id)
     .maybeSingle();
   if (error) {
@@ -3801,7 +4021,8 @@ async function createProfileFromMetadata() {
       theme: state.user.theme || "auto",
       prefers_morning: !!state.user.prefersMorning,
       onboarded: !!state.user.onboarded,
-      insight_intensity: state.user.insightIntensity || "strict"
+      insight_intensity: state.user.insightIntensity || "strict",
+      tour_completed: !!state.user.tourCompleted
     };
     const { error } = await supabase.from("profiles").insert(payload);
     if (!error) {
@@ -3825,7 +4046,7 @@ async function createProfileFromMetadata() {
 
 async function syncLocalToSupabase() {
   if (!supabaseEnabled() || !authUser) return;
-  const logs = Object.values(state.workoutLogs || {});
+  const logs = getAllWorkoutLogs();
   for (const log of logs) {
     await syncWorkoutToSupabase(log);
   }
@@ -3857,14 +4078,15 @@ async function loadRemoteData() {
 async function loadWorkoutLogsFromSupabase() {
   const { data, error } = await supabase
     .from("workout_logs")
-    .select("log_date, name, exercises, total_volume, total_sets, created_at, split_type, primary_muscles, secondary_muscles")
+    .select("id, log_date, started_at, name, exercises, total_volume, total_sets, created_at, split_type, primary_muscles, secondary_muscles")
     .eq("user_id", authUser.id);
   if (error) return;
   const logs = {};
   (data || []).forEach((row) => {
-    logs[row.log_date] = {
-      id: createId("log"),
+    logs[row.id] = {
+      id: row.id,
       date: row.log_date,
+      startedAt: row.started_at || row.created_at || new Date().toISOString(),
       name: row.name,
       exercises: Array.isArray(row.exercises) ? row.exercises : [],
       splitType: row.split_type || "",
@@ -3874,14 +4096,10 @@ async function loadWorkoutLogsFromSupabase() {
       totalSets: Number(row.total_sets) || 0,
       createdAt: row.created_at || new Date().toISOString()
     };
-    ensureExerciseBodyParts(logs[row.log_date]);
+    ensureExerciseBodyParts(logs[row.id]);
   });
   state.workoutLogs = logs;
   state.workoutDrafts = {};
-  Object.keys(logs).forEach((key) => {
-    state.workoutDrafts[key] = clone(logs[key]);
-    ensureExerciseBodyParts(state.workoutDrafts[key]);
-  });
 }
 
 async function loadWeightLogsFromSupabase() {
@@ -3951,7 +4169,7 @@ async function loadGroupsFromSupabase() {
     const group = {
       id: row.groups.id,
       name: row.groups.name,
-      icon: row.groups.icon || "GR",
+      icon: row.groups.icon || null,
       isPrivate: row.groups.is_private,
       ownerId: row.groups.owner_id,
       createdAt: row.groups.created_at,
@@ -3972,13 +4190,30 @@ async function loadGroupsFromSupabase() {
   if (!groupIds.length) return;
   const { data: memberRows } = await supabase
     .from("group_members")
-    .select("group_id, user_id, joined_at, profiles(id, username, display_name)")
+    .select("group_id, user_id, joined_at")
     .in("group_id", groupIds);
   const memberIds = new Set();
   (memberRows || []).forEach((row) => {
+    if (row.user_id) memberIds.add(row.user_id);
+  });
+
+  let profileMap = {};
+  const memberList = Array.from(memberIds);
+  if (memberList.length) {
+    const { data: profileRows } = await supabase
+      .from("public_profiles")
+      .select("id, username, display_name")
+      .in("id", memberList);
+    profileMap = (profileRows || []).reduce((acc, row) => {
+      acc[row.id] = row;
+      return acc;
+    }, {});
+  }
+
+  (memberRows || []).forEach((row) => {
     const group = groups[row.group_id];
     if (!group) return;
-    const profile = row.profiles || {};
+    const profile = profileMap[row.user_id] || {};
     group.members.push({
       id: row.user_id,
       name: profile.display_name || profile.username || "Member",
@@ -3986,11 +4221,10 @@ async function loadGroupsFromSupabase() {
       joinedAt: row.joined_at,
       logs: []
     });
-    memberIds.add(row.user_id);
   });
 
-  await loadMemberWeights(Array.from(memberIds), groups);
-  await loadGroupActivity(Array.from(memberIds), groups);
+  await loadMemberWeights(memberList, groups);
+  await loadGroupActivity(memberList, groups);
   await loadGroupFeed(groupIds, groups);
 }
 
@@ -4063,15 +4297,18 @@ async function loadGroupFeed(groupIds, groups) {
 async function syncWorkoutToSupabase(log) {
   if (!supabaseEnabled() || !authUser || !log) return;
   const payload = buildWorkoutPayload(log);
-  await supabase.from("workout_logs").upsert(payload, { onConflict: "user_id,log_date" });
+  await supabase.from("workout_logs").upsert(payload, { onConflict: "id" });
 }
 
 function buildWorkoutPayload(log) {
   const totalSets = countSets(log);
   const totalVolume = workoutVolume(log, "all");
+  const startedAt = log.startedAt || log.createdAt || new Date().toISOString();
   return {
+    id: log.id || createUuid(),
     user_id: authUser.id,
     log_date: log.date,
+    started_at: startedAt,
     name: log.name || "Workout",
     exercises: log.exercises || [],
     split_type: log.splitType || null,
@@ -4111,7 +4348,7 @@ async function syncGroupToSupabase(group) {
     id: group.id,
     owner_id: authUser.id,
     name: group.name,
-    icon: group.icon,
+    icon: group.icon || null,
     is_private: group.isPrivate,
     challenge_type: group.challenge.type,
     challenge_goal: group.challenge.goal
@@ -4241,6 +4478,10 @@ function formatDateShort(date) {
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+function formatTimeShort(date) {
+  return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
 function buildGreeting() {
   const hour = new Date().getHours();
   let greeting = "Good morning";
@@ -4249,27 +4490,80 @@ function buildGreeting() {
   return state.user.name ? `${greeting}, ${state.user.name}` : greeting;
 }
 
+function createEmptyDraft(dateKey) {
+  return {
+    id: createUuid(),
+    date: dateKey,
+    name: "",
+    exercises: [],
+    startedAt: buildSessionTimestamp(dateKey)
+  };
+}
+
+function getAllWorkoutLogs() {
+  return Object.values(state.workoutLogs || {});
+}
+
+function buildSessionTimestamp(dateKey) {
+  if (dateKey === todayKey()) return new Date().toISOString();
+  const fallback = new Date(`${dateKey}T12:00:00`);
+  if (!Number.isNaN(fallback.getTime())) return fallback.toISOString();
+  return new Date().toISOString();
+}
+
+function normalizeSessionTimestamp(dateKey, startedAt) {
+  if (startedAt) {
+    const startedDate = formatDateKey(new Date(startedAt));
+    if (startedDate === dateKey) return startedAt;
+  }
+  return buildSessionTimestamp(dateKey);
+}
+
+function getLogTimestamp(log) {
+  if (!log) return 0;
+  if (log.startedAt) {
+    const parsed = Date.parse(log.startedAt);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  if (log.date) return Date.parse(`${log.date}T12:00:00`);
+  if (log.createdAt) {
+    const parsed = Date.parse(log.createdAt);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return 0;
+}
+
+function sortLogsByTime(logs, direction = "desc") {
+  const sorted = [...(logs || [])];
+  sorted.sort((a, b) => {
+    const diff = getLogTimestamp(a) - getLogTimestamp(b);
+    return direction === "asc" ? diff : -diff;
+  });
+  return sorted;
+}
+
+function getLogsForDate(dateKey) {
+  return sortLogsByTime(getAllWorkoutLogs().filter((log) => log.date === dateKey));
+}
+
+function getWorkoutDatesWithLogs() {
+  const dates = new Set();
+  getAllWorkoutLogs().forEach((log) => {
+    if (log && log.date && hasWorkoutActivity(log)) dates.add(log.date);
+  });
+  return Array.from(dates).sort();
+}
+
 function getDraft(dateKey) {
   if (!state.workoutDrafts[dateKey]) {
-    const existing = state.workoutLogs[dateKey];
-    state.workoutDrafts[dateKey] = existing ? clone(existing) : {
-      id: createId("log"),
-      date: dateKey,
-      name: "",
-      exercises: []
-    };
+    state.workoutDrafts[dateKey] = createEmptyDraft(dateKey);
     ensureExerciseBodyParts(state.workoutDrafts[dateKey]);
   }
   return state.workoutDrafts[dateKey];
 }
 
 function resetDraftForDate(dateKey) {
-  state.workoutDrafts[dateKey] = {
-    id: createId("log"),
-    date: dateKey,
-    name: "",
-    exercises: []
-  };
+  state.workoutDrafts[dateKey] = createEmptyDraft(dateKey);
   state.ui.expandedExercise = null;
 }
 
@@ -4281,8 +4575,10 @@ function normalizeDraft(draft, dateKey) {
   const secondaryMuscles = Array.isArray(draft.secondaryMuscles)
     ? draft.secondaryMuscles.map((item) => String(item || "").trim()).filter(Boolean)
     : [];
+  const startedAt = normalizeSessionTimestamp(dateKey, draft.startedAt);
+  const createdAt = draft.createdAt || startedAt;
   return {
-    id: draft.id || createId("log"),
+    id: draft.id || createUuid(),
     date: dateKey,
     name: (draft.name || "Workout").slice(0, 80),
     exercises: draft.exercises.map((ex) => ({
@@ -4296,7 +4592,8 @@ function normalizeDraft(draft, dateKey) {
     splitType: splitType || "",
     primaryMuscles,
     secondaryMuscles,
-    createdAt: draft.createdAt || new Date().toISOString()
+    startedAt,
+    createdAt
   };
 }
 
@@ -4320,8 +4617,7 @@ function getDefaultSet(name, currentSets) {
 }
 
 function findLastSet(name) {
-  const logs = Object.values(state.workoutLogs || {});
-  logs.sort((a, b) => a.date.localeCompare(b.date));
+  const logs = sortLogsByTime(getAllWorkoutLogs(), "asc");
   for (let i = logs.length - 1; i >= 0; i -= 1) {
     const log = logs[i];
     for (const ex of log.exercises || []) {
@@ -4371,12 +4667,13 @@ function getLastTemplate() {
 }
 
 function addWorkoutFeed(log) {
-  const existing = state.feed.find((item) => item.type === "workout" && item.date === log.date);
+  const existing = state.feed.find((item) => item.type === "workout" && item.logId === log.id);
   if (existing) return;
   const item = {
     id: createId("feed"),
     type: "workout",
     date: log.date,
+    logId: log.id,
     title: `${log.name || "Workout"} completed`,
     subtitle: `${countSets(log)} sets logged`,
     likes: 0,
@@ -4431,7 +4728,7 @@ function countSets(log) {
 function countWorkoutsInRange(daysBack) {
   const today = new Date();
   const cutoff = new Date(today.getTime() - daysBack * DAY_MS);
-  return Object.values(state.workoutLogs || {}).filter((log) => {
+  return getAllWorkoutLogs().filter((log) => {
     const date = new Date(log.date + "T00:00:00");
     return date >= cutoff;
   }).length;
@@ -4517,10 +4814,11 @@ function buildWeightSeries(days) {
 function buildWorkoutSeries(weeks) {
   const today = new Date();
   const series = [];
+  const logs = getAllWorkoutLogs();
   for (let i = weeks - 1; i >= 0; i -= 1) {
     const end = new Date(today.getTime() - i * 7 * DAY_MS);
     const start = new Date(end.getTime() - 6 * DAY_MS);
-    const count = Object.values(state.workoutLogs || {}).filter((log) => {
+    const count = logs.filter((log) => {
       const date = new Date(log.date + "T00:00:00");
       return date >= start && date <= end;
     }).length;
@@ -4536,12 +4834,13 @@ function workoutsComparedToLastWeek() {
   const endPrev = new Date(startCurrent.getTime() - DAY_MS);
   const startPrev = new Date(endPrev.getTime() - 6 * DAY_MS);
 
-  const current = Object.values(state.workoutLogs || {}).filter((log) => {
+  const logs = getAllWorkoutLogs();
+  const current = logs.filter((log) => {
     const date = new Date(log.date + "T00:00:00");
     return date >= startCurrent && date <= endCurrent;
   }).length;
 
-  const prev = Object.values(state.workoutLogs || {}).filter((log) => {
+  const prev = logs.filter((log) => {
     const date = new Date(log.date + "T00:00:00");
     return date >= startPrev && date <= endPrev;
   }).length;
@@ -4551,8 +4850,7 @@ function workoutsComparedToLastWeek() {
 }
 
 function buildStrengthSeries(limit, bodyFilter = "all") {
-  const logs = Object.values(state.workoutLogs || {});
-  logs.sort((a, b) => a.date.localeCompare(b.date));
+  const logs = sortLogsByTime(getAllWorkoutLogs(), "asc");
   return logs.slice(-limit).map((log) => ({
     label: formatDateShort(new Date(log.date + "T00:00:00")),
     value: workoutVolume(log, bodyFilter)
@@ -4567,7 +4865,7 @@ function workoutVolume(log, bodyFilter = "all") {
 }
 
 function bestVolume(bodyFilter = "all") {
-  return Object.values(state.workoutLogs || {}).reduce((max, log) => Math.max(max, workoutVolume(log, bodyFilter)), 0);
+  return getAllWorkoutLogs().reduce((max, log) => Math.max(max, workoutVolume(log, bodyFilter)), 0);
 }
 
 function buildWeightDetail() {
@@ -4581,13 +4879,13 @@ function buildWeightDetail() {
 }
 
 function buildWorkoutDetail() {
-  const total = Object.keys(state.workoutLogs || {}).length;
+  const total = getAllWorkoutLogs().length;
   if (!total) return "Log workouts to see details.";
   return `Total workouts logged: ${total}. Longest streak: ${computeLongestStreak()} days.`;
 }
 
 function buildStrengthDetail(bodyFilter = "all") {
-  const logs = Object.values(state.workoutLogs || {});
+  const logs = getAllWorkoutLogs();
   if (!logs.length) return "Log workouts with weight to see strength details.";
   const volumes = logs.map((log) => workoutVolume(log, bodyFilter));
   const avg = volumes.reduce((a, b) => a + b, 0) / volumes.length;
@@ -4649,12 +4947,12 @@ function drawLineChart(canvas, series) {
 }
 
 function computeStreak() {
+  const dateSet = new Set(getWorkoutDatesWithLogs());
   let streak = 0;
   let cursor = new Date();
   while (true) {
     const key = formatDateKey(cursor);
-    const log = state.workoutLogs[key];
-    if (log && hasWorkoutActivity(log)) {
+    if (dateSet.has(key)) {
       streak += 1;
       cursor = new Date(cursor.getTime() - DAY_MS);
     } else {
@@ -4665,14 +4963,12 @@ function computeStreak() {
 }
 
 function computeLongestStreak() {
-  const dates = Object.keys(state.workoutLogs || {}).sort();
+  const dates = getWorkoutDatesWithLogs();
   if (!dates.length) return 0;
   let max = 0;
   let current = 0;
   let prevDate = null;
   dates.forEach((key) => {
-    const log = state.workoutLogs[key];
-    if (!log || !hasWorkoutActivity(log)) return;
     if (!prevDate) {
       current = 1;
     } else {
@@ -4689,10 +4985,9 @@ function computeLongestStreak() {
 }
 
 function getLatestWorkoutLog() {
-  const logs = Object.values(state.workoutLogs || {});
+  const logs = getAllWorkoutLogs();
   if (!logs.length) return null;
-  logs.sort((a, b) => a.date.localeCompare(b.date));
-  return logs[logs.length - 1];
+  return sortLogsByTime(logs)[0];
 }
 
 function buildGroupUpdate() {
@@ -4788,7 +5083,7 @@ function computeMemberStats(member, group, range) {
 function countWorkoutsForRange(range) {
   const today = new Date();
   const cutoff = new Date(today.getTime() - (range - 1) * DAY_MS);
-  return Object.values(state.workoutLogs || {}).filter((log) => {
+  return getAllWorkoutLogs().filter((log) => {
     const date = new Date(log.date + "T00:00:00");
     return date >= cutoff;
   }).length;
@@ -4797,7 +5092,7 @@ function countWorkoutsForRange(range) {
 function getMemberLogs(member) {
   if (member && Array.isArray(member.logs) && member.logs.length) return member.logs;
   if (member && member.id === state.user.id) {
-    return Object.values(state.workoutLogs || {}).map((log) => ({
+    return getAllWorkoutLogs().map((log) => ({
       date: log.date,
       totalVolume: workoutVolume(log, "all"),
       totalSets: countSets(log)
@@ -4856,7 +5151,7 @@ function getMemberWeight(member) {
 function volumeForRange(range) {
   const today = new Date();
   const cutoff = new Date(today.getTime() - (range - 1) * DAY_MS);
-  return Object.values(state.workoutLogs || {}).reduce((acc, log) => {
+  return getAllWorkoutLogs().reduce((acc, log) => {
     const date = new Date(log.date + "T00:00:00");
     if (date < cutoff) return acc;
     return acc + workoutVolume(log);
@@ -4870,12 +5165,13 @@ function workoutsComparedToPrevRange(range) {
   const endPrev = new Date(startCurrent.getTime() - DAY_MS);
   const startPrev = new Date(endPrev.getTime() - (range - 1) * DAY_MS);
 
-  const current = Object.values(state.workoutLogs || {}).filter((log) => {
+  const logs = getAllWorkoutLogs();
+  const current = logs.filter((log) => {
     const date = new Date(log.date + "T00:00:00");
     return date >= startCurrent && date <= endCurrent;
   }).length;
 
-  const prev = Object.values(state.workoutLogs || {}).filter((log) => {
+  const prev = logs.filter((log) => {
     const date = new Date(log.date + "T00:00:00");
     return date >= startPrev && date <= endPrev;
   }).length;

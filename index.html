@@ -320,7 +320,10 @@
               <h3 id="groupTitle">Select a group</h3>
               <p class="subtle" id="groupChallenge"></p>
             </div>
-            <button class="btn ghost" id="leaveGroupBtn" hidden>Leave Group</button>
+            <div class="inline">
+              <button class="btn ghost" id="leaveGroupBtn" hidden>Leave Group</button>
+              <button class="btn ghost danger" id="deleteGroupBtn" hidden>Delete Group</button>
+            </div>
           </div>
 
           <div class="seg" role="tablist" aria-label="Group metric" id="groupMetricToggle">
@@ -354,6 +357,13 @@
             <input class="inputText" id="groupMessageInput" placeholder="Send a group message" />
             <button class="btn" id="groupMessageBtn">Post</button>
           </div>
+
+          <div class="divider"></div>
+
+          <div class="panel-header">
+            <h3>Members</h3>
+          </div>
+          <div class="library-list" id="groupMemberList"></div>
 
           <div class="divider"></div>
 
@@ -480,10 +490,6 @@
           <label for="groupNameInput">Group name</label>
           <input class="inputText" id="groupNameInput" placeholder="Morning Crew" />
         </div>
-        <div class="field">
-          <label for="groupIconInput">Group icon (2 letters)</label>
-          <input class="inputText" id="groupIconInput" placeholder="MC" maxlength="2" />
-        </div>
         <label class="check-row">
           <input type="checkbox" id="groupPrivateToggle" checked />
           <span>Invite only (private)</span>
@@ -552,6 +558,27 @@
           <button class="btn ghost" id="logoutBtn" hidden>Log out</button>
         </div>
         <p class="note" id="authMessage"></p>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="tourModal" hidden>
+    <div class="modal tour-modal" role="dialog" aria-modal="true" aria-labelledby="tourTitle">
+      <div class="modal-header">
+        <div>
+          <h2 id="tourTitle">Momentum Walkthrough</h2>
+          <p class="subtle" id="tourProgress">Step 1 of 7</p>
+        </div>
+        <button class="btn ghost" id="tourCloseBtn">Close</button>
+      </div>
+      <div class="modal-body">
+        <h3 id="tourStepTitle"></h3>
+        <p class="subtle" id="tourStepBody"></p>
+      </div>
+      <div class="modal-actions">
+        <button class="btn ghost" id="tourBackBtn" disabled>Back</button>
+        <button class="btn ghost" id="tourSkipBtn">Skip tour</button>
+        <button class="btn primary" id="tourNextBtn">Next</button>
       </div>
     </div>
   </div>
